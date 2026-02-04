@@ -1,8 +1,8 @@
 {
   "grid": {
     "cols": 30,
-    "rows": 35,
-    "cellSize": 5,
+    "rows": 30,
+    "cellSize": 2,
     "origin": {
       "x": -35,
       "z": -35
