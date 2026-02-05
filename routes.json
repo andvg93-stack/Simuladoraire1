@@ -1,7 +1,7 @@
 {
   "grid": {
-    "cols": 50,
-    "rows": 50,
+    "cols": 40,
+    "rows": 40,
     "cellSize": 2,
     "origin": {
       "x": -35,
