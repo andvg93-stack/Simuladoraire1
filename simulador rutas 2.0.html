@@ -478,6 +478,9 @@ carretera(8, 70, 20, 0);
 carretera(15, 8, 25, -10);
 
 const coches = [];
+
+let cochesSpawneados = 0;
+let cochesEliminados = 0;
 let INTERVALO_SPAWN = 1500;
 let DISTANCIA_MINIMA_SPAWN = 10;
 
@@ -569,42 +572,84 @@ function crearMeshCoche() {
 
 function spawnCoche(ruta, numeroRuta) {
   if (ruta.length < 2) return;
-  if (coches.length >= MAX_COCHES) return;
-
+  
+  // CRÍTICO: Verificar límite ANTES de cualquier otra cosa
+  if (coches.length >= MAX_COCHES) {
+    console.log('No spawn: límite alcanzado', coches.length, '/', MAX_COCHES); 
+  return;
+  }
   const inicio = ruta[0];
-  const ocupado = coches.some(c => c.numeroRuta === numeroRuta && c.mesh.position.distanceTo(inicio) < DISTANCIA_MINIMA_SPAWN);
-  if (ocupado) return;
+  
+  // Verificar que no haya coches cerca del punto de spawn en CUALQUIER ruta
+  const ocupado = coches.some(c => {
+    const distancia = c.mesh.position.distanceTo(inicio);
+    return distancia < DISTANCIA_MINIMA_SPAWN;
+  });
+  
+  if (ocupado) {
+    console.log('No spawn: posición ocupada');
+    return;
+  }
 
   const mesh = crearMeshCoche();
   mesh.position.copy(inicio);
+  mesh.position.y = 1.3; // Asegurar altura correcta
 
-  const dirInicial = new THREE.Vector3().subVectors(ruta[1], ruta[0]);
+  const dirInicial = new THREE.Vector3().subVectors(ruta[1], ruta[0]).normalize();
+  if (dirInicial.lengthSq() < 0.001) {
+    console.log('No spawn: ruta inválida');
+    return;
+  }
+  
   const anguloBase = Math.atan2(dirInicial.x, dirInicial.z);
   mesh.rotation.y = anguloBase - Math.PI / 2;
 
   scene.add(mesh);
-
+  cochesSpawneados++;
+  console.log('✓ Coche spawneado', cochesSpawneados, 'Total activo:', coches.length + 1);
+  
   coches.push({
     mesh,
     segmento: 0,
     t: 0,
-    v: THREE.MathUtils.randFloat(0.05, 0.07),
+    v: THREE.MathUtils.randFloat(0.8, 1.2),
     rotacionActual: mesh.rotation.y,
     ruta: ruta,
     numeroRuta: numeroRuta
   });
 }
 
-function animarTrafico() {
+function animarTrafico(deltaTime) {
   for (let i = coches.length - 1; i >= 0; i--) {
     const c = coches[i];
+
+    // Verificar que el segmento es válido
+    if (c.segmento >= c.ruta.length - 1) {
+      scene.remove(c.mesh);
+      coches.splice(i, 1);
+      continue;
+    }
 
     const p1 = c.ruta[c.segmento];
     const p2 = c.ruta[c.segmento + 1];
 
     const distanciaTramo = p1.distanceTo(p2);
-    const incrementoAjustado = c.v / (distanciaTramo * 0.1);
-    c.t += incrementoAjustado;
+    
+    // Si el tramo es demasiado corto, saltar al siguiente
+    if (distanciaTramo < 0.1) {
+      c.segmento++;
+      c.t = 0;
+      if (c.segmento >= c.ruta.length - 1) {
+        scene.remove(c.mesh);
+        coches.splice(i, 1);
+      }
+      continue;
+    }
+    
+    const velocidadBase = 0.9;
+    const incrementoT = (velocidadBase * c.v * deltaTime * 60) / distanciaTramo;
+    
+    c.t += incrementoT;
 
     if (c.t >= 1) {
       c.t = 0;
@@ -619,9 +664,11 @@ function animarTrafico() {
     c.mesh.position.lerpVectors(p1, p2, c.t);
 
     const dir = new THREE.Vector3().subVectors(p2, p1);
-    const rotacionObjetivo = Math.atan2(dir.x, dir.z) - Math.PI / 2;
-    c.rotacionActual = THREE.MathUtils.lerp(c.rotacionActual, rotacionObjetivo, 0.1);
-    c.mesh.rotation.y = c.rotacionActual;
+    if (dir.lengthSq() > 0.001) {
+      const rotacionObjetivo = Math.atan2(dir.x, dir.z) - Math.PI / 2;
+      c.rotacionActual = THREE.MathUtils.lerp(c.rotacionActual, rotacionObjetivo, 0.1);
+      c.mesh.rotation.y = c.rotacionActual;
+    }
   }
 }
 
@@ -716,11 +763,22 @@ async function cargarRutas() {
   inicializarEditorRutas();
 }
 
+let lastTime = 0;
+
 function animate(time) {
   requestAnimationFrame(animate);
-  animarTrafico();
+  
+  // Calcular delta time en segundos
+  const deltaTime = lastTime === 0 ? 0.016 : Math.min((time - lastTime) / 1000, 0.1);
+  lastTime = time;
+  
+  animarTrafico(deltaTime);
 
-  if (TODAS_LAS_RUTAS.length > 0 && time - ultimoSpawnGlobal > INTERVALO_SPAWN) {
+  // IMPORTANTE: Solo intentar spawn si hay espacio disponible
+  if (TODAS_LAS_RUTAS.length > 0 && 
+      coches.length < MAX_COCHES && 
+      time - ultimoSpawnGlobal > INTERVALO_SPAWN) {
+    
     const ruta = TODAS_LAS_RUTAS[indiceRutaActual];
     spawnCoche(ruta.puntos, ruta.id);
     ultimoSpawnGlobal = time;
