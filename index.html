@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Simuladores Ambientales</title>
+<style>
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #ffe082, #b3e5fc);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .container {
+    background: rgba(255, 255, 255, 0.92);
+    padding: 32px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    text-align: center;
+    width: min(520px, 90vw);
+  }
+
+  h1 {
+    margin-top: 0;
+    font-size: 22px;
+    color: #333;
+  }
+
+  .buttons {
+    display: grid;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .buttons a {
+    display: block;
+    padding: 14px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    color: #fff;
+    background: #1976d2;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .buttons a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 14px rgba(25, 118, 210, 0.3);
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 1000;
+  }
+
+  .modal.hidden {
+    display: none;
+  }
+
+  .modal-content {
+    background: #fff;
+    padding: 28px;
+    border-radius: 14px;
+    width: min(420px, 90vw);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+  }
+
+  .modal-content h2 {
+    margin-top: 0;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+    text-align: left;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #2e7d32;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: #666;
+    margin-top: 10px;
+  }
+
+  .error {
+    color: #c62828;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Simuladores Ambientales</h1>
+    <p>Selecciona el simulador que deseas abrir.</p>
+    <div class="buttons">
+      <a href="simulador_aire.html">Simulador Aire</a>
+      <a href="simulador_agua.html">Simulador Agua</a>
+      <a href="simulador_suelo.html">Simulador Suelo</a>
+    </div>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Registro de estudiante</h2>
+      <p>Ingresa tus datos para continuar.</p>
+      <form id="registro-form">
+        <div class="form-group">
+          <label for="codigo">Código de estudiante</label>
+          <input id="codigo" name="codigo" type="text" inputmode="numeric" placeholder="Ej: 202400123" required>
+          <div id="codigo-error" class="error"></div>
+        </div>
+        <div class="form-group">
+          <label for="nombre">Nombre completo</label>
+          <input id="nombre" name="nombre" type="text" placeholder="Ej: Ana Pérez" required>
+          <div id="nombre-error" class="error"></div>
+        </div>
+        <button class="submit-btn" type="submit">Guardar datos</button>
+        <div class="hint">La información se registra solo la primera vez.</div>
+      </form>
+    </div>
+  </div>
+
+<script>
+  const STORAGE_KEY = 'simuladorUserInfo';
+  const LOG_KEY = 'simuladorUserLog';
+  const modal = document.getElementById('modal');
+  const form = document.getElementById('registro-form');
+  const codigoInput = document.getElementById('codigo');
+  const nombreInput = document.getElementById('nombre');
+  const codigoError = document.getElementById('codigo-error');
+  const nombreError = document.getElementById('nombre-error');
+
+  function mostrarModal() {
+    modal.classList.remove('hidden');
+  }
+
+  function ocultarModal() {
+    modal.classList.add('hidden');
+  }
+
+  function validarFormulario() {
+    let valido = true;
+    codigoError.textContent = '';
+    nombreError.textContent = '';
+
+    const codigo = codigoInput.value.trim();
+    const nombre = nombreInput.value.trim();
+
+    if (!/^[0-9]{4,}$/.test(codigo)) {
+      codigoError.textContent = 'Ingresa un código numérico válido (mínimo 4 dígitos).';
+      valido = false;
+    }
+
+    if (nombre.length < 3) {
+      nombreError.textContent = 'Ingresa tu nombre completo.';
+      valido = false;
+    }
+
+    return valido;
+  }
+
+  function guardarRegistro(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+    log.push(data);
+    localStorage.setItem(LOG_KEY, JSON.stringify(log));
+
+    const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'registro_estudiantes.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (!localStorage.getItem(STORAGE_KEY)) {
+    mostrarModal();
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!validarFormulario()) return;
+
+    const fecha = new Date();
+    const registro = {
+      codigo: codigoInput.value.trim(),
+      nombre: nombreInput.value.trim(),
+      fechaISO: fecha.toISOString(),
+      fechaLocal: fecha.toLocaleString('es-CO')
+    };
+
+    guardarRegistro(registro);
+    ocultarModal();
+  });
+</script>
+</body>
+</html>
