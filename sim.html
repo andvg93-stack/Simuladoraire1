@@ -42,10 +42,7 @@
     height: 280px;
     opacity: 0.55;
     transform: translate(-10px, 10px);
-    border-radius: 18px;
-    background: radial-gradient(circle at top, rgba(0, 255, 204, 0.25), rgba(0, 80, 60, 0.6));
-    border: 2px solid rgba(0, 255, 204, 0.4);
-    box-shadow: 0 0 25px rgba(0, 255, 204, 0.35);
+    object-fit: contain;
   }
 
   #data-panel {
@@ -137,7 +134,7 @@
 </div>
 
 <div id="data-panel-wrapper">
-  <div id="data-panel-background" aria-hidden="true"></div>
+  <img id="data-panel-background" src="pantalla-placeholder.png" alt="Pantalla placeholder" />
   <div id="data-panel">
     <h4 style="margin: 0 0 10px 0; color: #fff; text-align: center; border-bottom: 1px solid #444;">ESTACIÓN MONITOREO</h4>
 
@@ -179,7 +176,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const ROUTES_URL = './routes.json';
-const SHOW_ROUTE_EDITOR = true;
+const SHOW_ROUTE_EDITOR = false;
 const DEFAULT_ROUTES_DATA = {
   grid: {
     cols: 15,
@@ -482,9 +479,8 @@ let INTERVALO_SPAWN = 1500;
 let DISTANCIA_MINIMA_SPAWN = 10;
 
 let TODAS_LAS_RUTAS = [];
+let ultimosSpawns = [];
 let debugLines = [];
-let ultimoSpawnGlobal = 0;
-let indiceRutaActual = 0;
 
 const coloresCoches = [0xffd54f, 0xe53935, 0x1e88e5, 0xa52523, 0x4caf50];
 
@@ -568,11 +564,10 @@ function crearMeshCoche() {
 }
 
 function spawnCoche(ruta, numeroRuta) {
-  if (ruta.length < 2) return;
   if (coches.length >= MAX_COCHES) return;
 
   const inicio = ruta[0];
-  const ocupado = coches.some(c => c.numeroRuta === numeroRuta && c.mesh.position.distanceTo(inicio) < DISTANCIA_MINIMA_SPAWN);
+  const ocupado = coches.some(c => c.mesh.position.distanceTo(inicio) < DISTANCIA_MINIMA_SPAWN);
   if (ocupado) return;
 
   const mesh = crearMeshCoche();
@@ -599,8 +594,8 @@ function animarTrafico() {
   for (let i = coches.length - 1; i >= 0; i--) {
     const c = coches[i];
 
-    let p1 = c.ruta[c.segmento];
-    let p2 = c.ruta[c.segmento + 1];
+    const p1 = c.ruta[c.segmento];
+    const p2 = c.ruta[c.segmento + 1];
 
     const distanciaTramo = p1.distanceTo(p2);
     const incrementoAjustado = c.v / (distanciaTramo * 0.1);
@@ -614,12 +609,9 @@ function animarTrafico() {
         coches.splice(i, 1);
         continue;
       }
-      p1 = c.ruta[c.segmento];
-      p2 = c.ruta[c.segmento + 1];
-      c.mesh.position.copy(p1);
-    } else {
-      c.mesh.position.lerpVectors(p1, p2, c.t);
     }
+
+    c.mesh.position.lerpVectors(p1, p2, c.t);
 
     const dir = new THREE.Vector3().subVectors(p2, p1);
     const rotacionObjetivo = Math.atan2(dir.x, dir.z) - Math.PI / 2;
@@ -695,8 +687,7 @@ function cargarRutasDesdeData() {
     color: new THREE.Color(route.color),
     puntos: route.points.map(gridToWorld)
   }));
-  ultimoSpawnGlobal = 0;
-  indiceRutaActual = 0;
+  ultimosSpawns = TODAS_LAS_RUTAS.map(() => 0);
   if (SHOW_ROUTE_EDITOR) {
     activarDebugRutas();
   } else {
@@ -723,12 +714,12 @@ function animate(time) {
   requestAnimationFrame(animate);
   animarTrafico();
 
-  if (TODAS_LAS_RUTAS.length > 0 && time - ultimoSpawnGlobal > INTERVALO_SPAWN) {
-    const ruta = TODAS_LAS_RUTAS[indiceRutaActual];
-    spawnCoche(ruta.puntos, ruta.id);
-    ultimoSpawnGlobal = time;
-    indiceRutaActual = (indiceRutaActual + 1) % TODAS_LAS_RUTAS.length;
-  }
+  TODAS_LAS_RUTAS.forEach((ruta, index) => {
+    if (time - ultimosSpawns[index] > INTERVALO_SPAWN) {
+      spawnCoche(ruta.puntos, ruta.id);
+      ultimosSpawns[index] = time;
+    }
+  });
 
   controls.update();
   renderer.render(scene, camera);

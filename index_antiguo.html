@@ -42,10 +42,7 @@
     height: 280px;
     opacity: 0.55;
     transform: translate(-10px, 10px);
-    border-radius: 18px;
-    background: radial-gradient(circle at top, rgba(0, 255, 204, 0.25), rgba(0, 80, 60, 0.6));
-    border: 2px solid rgba(0, 255, 204, 0.4);
-    box-shadow: 0 0 25px rgba(0, 255, 204, 0.35);
+    object-fit: contain;
   }
 
   #data-panel {
@@ -72,10 +69,6 @@
     border-radius: 10px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     z-index: 100;
-  }
-
-  #routes-panel.hidden {
-    display: none;
   }
 
   #routes-panel h4 {
@@ -137,7 +130,7 @@
 </div>
 
 <div id="data-panel-wrapper">
-  <div id="data-panel-background" aria-hidden="true"></div>
+  <img id="data-panel-background" src="pantalla-placeholder.png" alt="Pantalla placeholder" />
   <div id="data-panel">
     <h4 style="margin: 0 0 10px 0; color: #fff; text-align: center; border-bottom: 1px solid #444;">ESTACIÓN MONITOREO</h4>
 
@@ -179,7 +172,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const ROUTES_URL = './routes.json';
-const SHOW_ROUTE_EDITOR = true;
 const DEFAULT_ROUTES_DATA = {
   grid: {
     cols: 15,
@@ -482,9 +474,8 @@ let INTERVALO_SPAWN = 1500;
 let DISTANCIA_MINIMA_SPAWN = 10;
 
 let TODAS_LAS_RUTAS = [];
+let ultimosSpawns = [];
 let debugLines = [];
-let ultimoSpawnGlobal = 0;
-let indiceRutaActual = 0;
 
 const coloresCoches = [0xffd54f, 0xe53935, 0x1e88e5, 0xa52523, 0x4caf50];
 
@@ -568,11 +559,10 @@ function crearMeshCoche() {
 }
 
 function spawnCoche(ruta, numeroRuta) {
-  if (ruta.length < 2) return;
   if (coches.length >= MAX_COCHES) return;
 
   const inicio = ruta[0];
-  const ocupado = coches.some(c => c.numeroRuta === numeroRuta && c.mesh.position.distanceTo(inicio) < DISTANCIA_MINIMA_SPAWN);
+  const ocupado = coches.some(c => c.mesh.position.distanceTo(inicio) < DISTANCIA_MINIMA_SPAWN);
   if (ocupado) return;
 
   const mesh = crearMeshCoche();
@@ -599,8 +589,8 @@ function animarTrafico() {
   for (let i = coches.length - 1; i >= 0; i--) {
     const c = coches[i];
 
-    let p1 = c.ruta[c.segmento];
-    let p2 = c.ruta[c.segmento + 1];
+    const p1 = c.ruta[c.segmento];
+    const p2 = c.ruta[c.segmento + 1];
 
     const distanciaTramo = p1.distanceTo(p2);
     const incrementoAjustado = c.v / (distanciaTramo * 0.1);
@@ -614,12 +604,9 @@ function animarTrafico() {
         coches.splice(i, 1);
         continue;
       }
-      p1 = c.ruta[c.segmento];
-      p2 = c.ruta[c.segmento + 1];
-      c.mesh.position.copy(p1);
-    } else {
-      c.mesh.position.lerpVectors(p1, p2, c.t);
     }
+
+    c.mesh.position.lerpVectors(p1, p2, c.t);
 
     const dir = new THREE.Vector3().subVectors(p2, p1);
     const rotacionObjetivo = Math.atan2(dir.x, dir.z) - Math.PI / 2;
@@ -658,7 +645,6 @@ function limpiarDebugRutas() {
 }
 
 function activarDebugRutas() {
-  if (!SHOW_ROUTE_EDITOR) return;
   limpiarDebugRutas();
   TODAS_LAS_RUTAS.forEach((r) => {
     const puntosGeom = new THREE.BufferGeometry().setFromPoints(r.puntos);
@@ -695,13 +681,8 @@ function cargarRutasDesdeData() {
     color: new THREE.Color(route.color),
     puntos: route.points.map(gridToWorld)
   }));
-  ultimoSpawnGlobal = 0;
-  indiceRutaActual = 0;
-  if (SHOW_ROUTE_EDITOR) {
-    activarDebugRutas();
-  } else {
-    limpiarDebugRutas();
-  }
+  ultimosSpawns = TODAS_LAS_RUTAS.map(() => 0);
+  activarDebugRutas();
 }
 
 async function cargarRutas() {
@@ -723,12 +704,12 @@ function animate(time) {
   requestAnimationFrame(animate);
   animarTrafico();
 
-  if (TODAS_LAS_RUTAS.length > 0 && time - ultimoSpawnGlobal > INTERVALO_SPAWN) {
-    const ruta = TODAS_LAS_RUTAS[indiceRutaActual];
-    spawnCoche(ruta.puntos, ruta.id);
-    ultimoSpawnGlobal = time;
-    indiceRutaActual = (indiceRutaActual + 1) % TODAS_LAS_RUTAS.length;
-  }
+  TODAS_LAS_RUTAS.forEach((ruta, index) => {
+    if (time - ultimosSpawns[index] > INTERVALO_SPAWN) {
+      spawnCoche(ruta.puntos, ruta.id);
+      ultimosSpawns[index] = time;
+    }
+  });
 
   controls.update();
   renderer.render(scene, camera);
@@ -775,7 +756,6 @@ document.getElementById('slider-edificios').addEventListener('input', (e) => {
   actualizarParametrosFisicoquimicos();
 });
 
-const routesPanel = document.getElementById('routes-panel');
 const routesCanvas = document.getElementById('routes-canvas');
 const routesSelect = document.getElementById('routes-select');
 const ctxRoutes = routesCanvas.getContext('2d');
@@ -813,7 +793,6 @@ function canvasPointFromGrid(point) {
 }
 
 function dibujarGrid() {
-  if (!SHOW_ROUTE_EDITOR) return;
   ctxRoutes.clearRect(0, 0, routesCanvas.width, routesCanvas.height);
   const { cols, rows } = rutasData.grid;
   const cellWidth = routesCanvas.width / cols;
@@ -836,7 +815,6 @@ function dibujarGrid() {
 }
 
 function dibujarRutas() {
-  if (!SHOW_ROUTE_EDITOR) return;
   dibujarGrid();
   rutasData.routes.forEach(route => {
     if (route.points.length < 1) return;
@@ -864,7 +842,6 @@ function dibujarRutas() {
 }
 
 function actualizarSelectRutas() {
-  if (!SHOW_ROUTE_EDITOR) return;
   routesSelect.innerHTML = '';
   rutasData.routes.forEach(route => {
     const option = document.createElement('option');
@@ -883,7 +860,6 @@ function obtenerRutaSeleccionada() {
 }
 
 function recalcularRutasDesdeEditor() {
-  if (!SHOW_ROUTE_EDITOR) return;
   cargarRutasDesdeData();
 }
 
@@ -892,7 +868,6 @@ routesSelect.addEventListener('change', (e) => {
 });
 
 routesCanvas.addEventListener('mousedown', (evt) => {
-  if (!SHOW_ROUTE_EDITOR) return;
   const route = obtenerRutaSeleccionada();
   if (!route) return;
   const canvasPoint = getCanvasPoint(evt);
@@ -922,7 +897,6 @@ routesCanvas.addEventListener('mousedown', (evt) => {
 });
 
 routesCanvas.addEventListener('mousemove', (evt) => {
-  if (!SHOW_ROUTE_EDITOR) return;
   if (puntoArrastrado === null) return;
   const route = obtenerRutaSeleccionada();
   if (!route) return;
@@ -934,23 +908,19 @@ routesCanvas.addEventListener('mousemove', (evt) => {
 });
 
 routesCanvas.addEventListener('mouseup', () => {
-  if (!SHOW_ROUTE_EDITOR) return;
   puntoArrastrado = null;
 });
 
 routesCanvas.addEventListener('mouseleave', () => {
-  if (!SHOW_ROUTE_EDITOR) return;
   puntoArrastrado = null;
 });
 
 function inicializarEditorRutas() {
-  if (!SHOW_ROUTE_EDITOR) return;
   actualizarSelectRutas();
   dibujarRutas();
 }
 
 function crearNuevaRuta() {
-  if (!SHOW_ROUTE_EDITOR) return;
   const nuevoId = rutasData.routes.length ? Math.max(...rutasData.routes.map(r => r.id)) + 1 : 1;
   const color = `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')}`;
   rutasData.routes.push({
@@ -966,7 +936,6 @@ function crearNuevaRuta() {
 }
 
 function limpiarRutaSeleccionada() {
-  if (!SHOW_ROUTE_EDITOR) return;
   const route = obtenerRutaSeleccionada();
   if (!route) return;
   route.points = [];
@@ -976,7 +945,6 @@ function limpiarRutaSeleccionada() {
 }
 
 function descargarJSON() {
-  if (!SHOW_ROUTE_EDITOR) return;
   const dataStr = JSON.stringify(rutasData, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -988,7 +956,6 @@ function descargarJSON() {
 }
 
 function cargarJSONDesdeArchivo(file) {
-  if (!SHOW_ROUTE_EDITOR) return;
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
@@ -1010,7 +977,6 @@ document.getElementById('btn-nueva-ruta').addEventListener('click', crearNuevaRu
 document.getElementById('btn-limpiar-ruta').addEventListener('click', limpiarRutaSeleccionada);
 document.getElementById('btn-descargar').addEventListener('click', descargarJSON);
 document.getElementById('input-cargar').addEventListener('change', (e) => {
-  if (!SHOW_ROUTE_EDITOR) return;
   if (e.target.files.length) {
     cargarJSONDesdeArchivo(e.target.files[0]);
   }
@@ -1019,10 +985,6 @@ document.getElementById('input-cargar').addEventListener('change', (e) => {
 actualizarEdificios(75);
 actualizarArboles(80);
 actualizarParametrosFisicoquimicos();
-
-if (!SHOW_ROUTE_EDITOR) {
-  routesPanel.classList.add('hidden');
-}
 
 cargarRutas();
 
