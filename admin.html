@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel privado de registros</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #d1c4e9, #b2ebf2);
+    }
+
+    .card {
+      width: min(560px, 92vw);
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    h1 { margin-top: 0; }
+    .row { margin-bottom: 12px; }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-right: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-primary { background: #1976d2; color: #fff; }
+    .btn-secondary { background: #2e7d32; color: #fff; }
+
+    pre {
+      max-height: 260px;
+      overflow: auto;
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .status { font-size: 13px; color: #444; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Panel privado de registros</h1>
+    <p>Solo el administrador con credenciales puede consultar y descargar la información.</p>
+
+    <div class="row">
+      <label for="usuario">Usuario</label>
+      <input id="usuario" type="text" autocomplete="username">
+    </div>
+
+    <div class="row">
+      <label for="clave">Contraseña</label>
+      <input id="clave" type="password" autocomplete="current-password">
+    </div>
+
+    <div class="row">
+      <button id="ver" class="btn-primary">Ver registros</button>
+      <button id="descargar" class="btn-secondary">Descargar JSON</button>
+    </div>
+
+    <div id="status" class="status"></div>
+    <pre id="salida">Sin datos cargados.</pre>
+  </div>
+
+  <script>
+    const usuarioInput = document.getElementById('usuario');
+    const claveInput = document.getElementById('clave');
+    const salida = document.getElementById('salida');
+    const status = document.getElementById('status');
+
+    function authHeader() {
+      const token = btoa(`${usuarioInput.value}:${claveInput.value}`);
+      return { Authorization: `Basic ${token}` };
+    }
+
+    async function verRegistros() {
+      status.textContent = 'Consultando...';
+      const response = await fetch('/api/registros', {
+        headers: authHeader()
+      });
+
+      if (!response.ok) {
+        status.textContent = 'No autorizado o error al consultar.';
+        salida.textContent = 'No fue posible cargar los registros.';
+        return;
+      }
+
+      const data = await response.json();
+      status.textContent = `Registros cargados: ${data.length}`;
+      salida.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function descargarRegistros() {
+      status.textContent = 'Preparando descarga...';
+      const response = await fetch('/api/registros/descargar', {
+        headers: authHeader()
+      });
+
+      if (!response.ok) {
+        status.textContent = 'No autorizado o error al descargar.';
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'registro_estudiantes.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      status.textContent = 'Descarga completada.';
+    }
+
+    document.getElementById('ver').addEventListener('click', () => {
+      verRegistros().catch(() => {
+        status.textContent = 'Ocurrió un error al consultar.';
+      });
+    });
+
+    document.getElementById('descargar').addEventListener('click', () => {
+      descargarRegistros().catch(() => {
+        status.textContent = 'Ocurrió un error al descargar.';
+      });
+    });
+  </script>
+</body>
+</html>

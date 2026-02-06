@@ -148,14 +148,13 @@
           <div id="nombre-error" class="error"></div>
         </div>
         <button class="submit-btn" type="submit">Guardar datos</button>
-        <div class="hint">La información se registra solo la primera vez.</div>
+        <div class="hint">La información se envía de forma privada al administrador.</div>
       </form>
     </div>
   </div>
 
 <script>
   const STORAGE_KEY = 'simuladorUserInfo';
-  const LOG_KEY = 'simuladorUserLog';
   const modal = document.getElementById('modal');
   const form = document.getElementById('registro-form');
   const codigoInput = document.getElementById('codigo');
@@ -192,26 +191,27 @@
     return valido;
   }
 
-  function guardarRegistro(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
-    log.push(data);
-    localStorage.setItem(LOG_KEY, JSON.stringify(log));
+  async function guardarRegistro(data) {
+    const response = await fetch('/api/registros', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
 
-    const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'registro_estudiantes.json';
-    link.click();
-    URL.revokeObjectURL(url);
+    if (!response.ok) {
+      throw new Error('No se pudo guardar el registro.');
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
 
   if (!localStorage.getItem(STORAGE_KEY)) {
     mostrarModal();
   }
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!validarFormulario()) return;
 
@@ -223,8 +223,12 @@
       fechaLocal: fecha.toLocaleString('es-CO')
     };
 
-    guardarRegistro(registro);
-    ocultarModal();
+    try {
+      await guardarRegistro(registro);
+      ocultarModal();
+    } catch (error) {
+      nombreError.textContent = 'No fue posible guardar los datos. Intenta nuevamente.';
+    }
   });
 </script>
 </body>
