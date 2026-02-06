@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const DATA_FILE = path.join(__dirname, 'registro_estudiantes.json');
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'cambia-esto';
+const ADMIN_PASS = process.env.ADMIN_PASS || '7777';
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
