@@ -42,10 +42,7 @@
     height: 280px;
     opacity: 0.55;
     transform: translate(-10px, 10px);
-    border-radius: 18px;
-    background: radial-gradient(circle at top, rgba(0, 255, 204, 0.25), rgba(0, 80, 60, 0.6));
-    border: 2px solid rgba(0, 255, 204, 0.4);
-    box-shadow: 0 0 25px rgba(0, 255, 204, 0.35);
+    object-fit: contain;
   }
 
   #data-panel {
@@ -137,7 +134,7 @@
 </div>
 
 <div id="data-panel-wrapper">
-  <div id="data-panel-background" aria-hidden="true"></div>
+  <img id="data-panel-background" src="pantalla-placeholder.png" alt="Pantalla placeholder" />
   <div id="data-panel">
     <h4 style="margin: 0 0 10px 0; color: #fff; text-align: center; border-bottom: 1px solid #444;">ESTACIÓN MONITOREO</h4>
 
@@ -478,16 +475,12 @@ carretera(8, 70, 20, 0);
 carretera(15, 8, 25, -10);
 
 const coches = [];
-
-let cochesSpawneados = 0;
-let cochesEliminados = 0;
 let INTERVALO_SPAWN = 1500;
 let DISTANCIA_MINIMA_SPAWN = 10;
 
 let TODAS_LAS_RUTAS = [];
+let ultimosSpawns = [];
 let debugLines = [];
-let ultimoSpawnGlobal = 0;
-let indiceRutaActual = 0;
 
 const coloresCoches = [0xffd54f, 0xe53935, 0x1e88e5, 0xa52523, 0x4caf50];
 
@@ -571,90 +564,42 @@ function crearMeshCoche() {
 }
 
 function spawnCoche(ruta, numeroRuta) {
-  if (ruta.length < 2) return;
-  
-  // CRÍTICO: Verificar límite ANTES de cualquier otra cosa
-  if (coches.length >= MAX_COCHES) {
-    console.log('No spawn: límite alcanzado', coches.length, '/', MAX_COCHES); 
-  return;
-  }
+  if (coches.length >= MAX_COCHES) return;
+
   const inicio = ruta[0];
-  
-  // Verificar que no haya coches cerca del punto de spawn en CUALQUIER ruta
-  const ocupado = coches.some(c => {
-    const distancia = c.mesh.position.distanceTo(inicio);
-    return distancia < DISTANCIA_MINIMA_SPAWN;
-  });
-  
-  if (ocupado) {
-    console.log('No spawn: posición ocupada');
-    return;
-  }
+  const ocupado = coches.some(c => c.mesh.position.distanceTo(inicio) < DISTANCIA_MINIMA_SPAWN);
+  if (ocupado) return;
 
   const mesh = crearMeshCoche();
   mesh.position.copy(inicio);
-  mesh.position.y = 1.3; // Asegurar altura correcta
 
-  const dirInicial = new THREE.Vector3().subVectors(ruta[1], ruta[0]).normalize();
-  if (dirInicial.lengthSq() < 0.001) {
-    console.log('No spawn: ruta inválida');
-    return;
-  }
-  
+  const dirInicial = new THREE.Vector3().subVectors(ruta[1], ruta[0]);
   const anguloBase = Math.atan2(dirInicial.x, dirInicial.z);
   mesh.rotation.y = anguloBase - Math.PI / 2;
 
   scene.add(mesh);
-  cochesSpawneados++;
-  console.log('✓ Coche spawneado', cochesSpawneados, 'Total activo:', coches.length + 1);
-  
+
   coches.push({
     mesh,
     segmento: 0,
     t: 0,
-    v: THREE.MathUtils.randFloat(0.8, 1.2),
+    v: THREE.MathUtils.randFloat(0.05, 0.07),
     rotacionActual: mesh.rotation.y,
     ruta: ruta,
     numeroRuta: numeroRuta
   });
 }
 
-function animarTrafico(deltaTime) {
+function animarTrafico() {
   for (let i = coches.length - 1; i >= 0; i--) {
     const c = coches[i];
 
-<<<<<<< HEAD
-    // Verificar que el segmento es válido
-    if (c.segmento >= c.ruta.length - 1) {
-      scene.remove(c.mesh);
-      coches.splice(i, 1);
-      continue;
-    }
-
     const p1 = c.ruta[c.segmento];
     const p2 = c.ruta[c.segmento + 1];
-=======
-    let p1 = c.ruta[c.segmento];
-    let p2 = c.ruta[c.segmento + 1];
->>>>>>> 369955c4dc649401832dba6ecccb12e8df0d449c
 
     const distanciaTramo = p1.distanceTo(p2);
-    
-    // Si el tramo es demasiado corto, saltar al siguiente
-    if (distanciaTramo < 0.1) {
-      c.segmento++;
-      c.t = 0;
-      if (c.segmento >= c.ruta.length - 1) {
-        scene.remove(c.mesh);
-        coches.splice(i, 1);
-      }
-      continue;
-    }
-    
-    const velocidadBase = 0.9;
-    const incrementoT = (velocidadBase * c.v * deltaTime * 60) / distanciaTramo;
-    
-    c.t += incrementoT;
+    const incrementoAjustado = c.v / (distanciaTramo * 0.1);
+    c.t += incrementoAjustado;
 
     if (c.t >= 1) {
       c.t = 0;
@@ -664,19 +609,14 @@ function animarTrafico(deltaTime) {
         coches.splice(i, 1);
         continue;
       }
-      p1 = c.ruta[c.segmento];
-      p2 = c.ruta[c.segmento + 1];
-      c.mesh.position.copy(p1);
-    } else {
-      c.mesh.position.lerpVectors(p1, p2, c.t);
     }
 
+    c.mesh.position.lerpVectors(p1, p2, c.t);
+
     const dir = new THREE.Vector3().subVectors(p2, p1);
-    if (dir.lengthSq() > 0.001) {
-      const rotacionObjetivo = Math.atan2(dir.x, dir.z) - Math.PI / 2;
-      c.rotacionActual = THREE.MathUtils.lerp(c.rotacionActual, rotacionObjetivo, 0.1);
-      c.mesh.rotation.y = c.rotacionActual;
-    }
+    const rotacionObjetivo = Math.atan2(dir.x, dir.z) - Math.PI / 2;
+    c.rotacionActual = THREE.MathUtils.lerp(c.rotacionActual, rotacionObjetivo, 0.1);
+    c.mesh.rotation.y = c.rotacionActual;
   }
 }
 
@@ -747,8 +687,7 @@ function cargarRutasDesdeData() {
     color: new THREE.Color(route.color),
     puntos: route.points.map(gridToWorld)
   }));
-  ultimoSpawnGlobal = 0;
-  indiceRutaActual = 0;
+  ultimosSpawns = TODAS_LAS_RUTAS.map(() => 0);
   if (SHOW_ROUTE_EDITOR) {
     activarDebugRutas();
   } else {
@@ -771,27 +710,16 @@ async function cargarRutas() {
   inicializarEditorRutas();
 }
 
-let lastTime = 0;
-
 function animate(time) {
   requestAnimationFrame(animate);
-  
-  // Calcular delta time en segundos
-  const deltaTime = lastTime === 0 ? 0.016 : Math.min((time - lastTime) / 1000, 0.1);
-  lastTime = time;
-  
-  animarTrafico(deltaTime);
+  animarTrafico();
 
-  // IMPORTANTE: Solo intentar spawn si hay espacio disponible
-  if (TODAS_LAS_RUTAS.length > 0 && 
-      coches.length < MAX_COCHES && 
-      time - ultimoSpawnGlobal > INTERVALO_SPAWN) {
-    
-    const ruta = TODAS_LAS_RUTAS[indiceRutaActual];
-    spawnCoche(ruta.puntos, ruta.id);
-    ultimoSpawnGlobal = time;
-    indiceRutaActual = (indiceRutaActual + 1) % TODAS_LAS_RUTAS.length;
-  }
+  TODAS_LAS_RUTAS.forEach((ruta, index) => {
+    if (time - ultimosSpawns[index] > INTERVALO_SPAWN) {
+      spawnCoche(ruta.puntos, ruta.id);
+      ultimosSpawns[index] = time;
+    }
+  });
 
   controls.update();
   renderer.render(scene, camera);
